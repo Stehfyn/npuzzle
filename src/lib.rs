@@ -5,6 +5,7 @@ mod about_panel;
 mod fd;
 mod gallery_panel;
 mod image_helpers;
+mod npuzzle;
 mod puzzle_panel;
 mod settings_panel;
 mod web_helpers;

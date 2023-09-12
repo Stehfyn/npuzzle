@@ -490,6 +490,8 @@ impl TemplateApp {
             width += item_spacing_x;
         }
 
+        width += item_spacing_x;
+
         width
     }
 
