@@ -46,6 +46,7 @@ pub fn from_response_to_image_wrapper<'a>(
     }
 }
 
+#[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct SubImage {

@@ -7,11 +7,6 @@ enum RunMode {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum GenerationDifficultyMetric {
-    MostMoves,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GameMode {
     TimeAttack,
     Outsmart,

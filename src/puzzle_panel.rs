@@ -1,6 +1,8 @@
 use crate::image_helpers;
+use crate::npuzzle::*;
 #[cfg(target_arch = "wasm32")]
 use crate::web_helpers::{isIOS, isMobile};
+use log::{debug, error, info};
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
@@ -24,6 +26,14 @@ pub struct PuzzlePanel {
     debug_paint: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
     constrained_width: f32,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    board: NBoard,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    regen: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    missing_index: usize,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    in_play: bool,
 }
 
 impl Default for PuzzlePanel {
@@ -39,12 +49,27 @@ impl Default for PuzzlePanel {
             delay_repaint: false,
             debug_paint: true,
             constrained_width: 0.,
+            board: NBoard::new(3),
+            regen: false,
+            missing_index: (3 * 3) + 1,
+            in_play: false,
         }
     }
 }
 
 impl PuzzlePanel {
-    pub fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {}
+    pub fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.regen {
+            self.generate_puzzle_board();
+            self.in_play = true;
+            self.regen = false;
+        }
+        if self.in_play {
+            if self.board.check_win() {
+                debug!("win!!!");
+            }
+        }
+    }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.game_canvas_ui(ui, frame);
@@ -100,57 +125,33 @@ impl PuzzlePanel {
 
         egui::Grid::new("game_canvas").show(ui, |ui| {
             ui.style_mut().spacing.item_spacing.x = ui.style().spacing.item_spacing.y;
-            let mut subimage_index = 0;
 
-            let rebuild_subimages = self.puzzle_subimages.len() != ((self.m * self.n) as usize);
-            if rebuild_subimages {
-                self.puzzle_subimages.clear();
-            }
+            let mut subimage_index = 0;
+            let rebuild_subimages = self.puzzle_subimages.is_empty();
 
             for i in 0..self.m {
                 ui.add_space(w_offset);
                 for j in 0..self.n {
-                    // Fix offset for Mobile
                     #[cfg(target_arch = "wasm32")]
-                    if isMobile() || isIOS() {
-                        let x = self.m as f32;
-                        let input_min = 2.0;
-                        let input_max = 6.0;
-                        let output_min = 1.0;
-                        let output_max = 0.75;
-
-                        // Normalize x from [input_min, input_max] to [output_min, output_max]
-                        let norm = (x - input_min) / (input_max - input_min)
-                            * (output_max - output_min)
-                            + output_min;
-
-                        //normalize diff
-                        ui.add_space(ui.style().spacing.window_margin.left * norm * 0.5);
-                    }
+                    self.fix_puzzle_offset_for_mobile(ui);
 
                     if rebuild_subimages {
-                        if let Some(rimg) = &self.puzzle_image_r {
-                            let next_subimage = build_next_subimage(
-                                ui,
-                                format!("sub_img_paint_{}", subimage_index),
-                                rimg.texture_id(ui.ctx()),
-                                subimage_index,
-                                self.m,
-                                j,
-                                i,
-                                button_side,
-                            );
-                            self.puzzle_subimages.insert(subimage_index, next_subimage);
-                        }
+                        self.rebuild_subimage(j, i, subimage_index, button_side, ui);
                     }
 
                     if let Some(subimage) = self.puzzle_subimages.get_mut(subimage_index) {
                         if !rebuild_subimages {
                             update_subimage_region(ui, subimage, button_side);
                         }
-
-                        let drag_event =
-                            make_drag(&mut self.drag_delta, ui, ui.next_auto_id(), |ui| {
+                        let can_drag_list = self.board.get_swappable();
+                        let can_drag = (self.missing_index != subimage_index)
+                            && (can_drag_list.contains(&subimage_index));
+                        let drag_event = make_drag(
+                            &mut self.drag_delta,
+                            ui,
+                            ui.next_auto_id(),
+                            can_drag,
+                            |ui| {
                                 ui.add_visible_ui(!self.delay_repaint, |ui| {
                                     ui.add_sized(
                                         [button_side, button_side],
@@ -160,7 +161,8 @@ impl PuzzlePanel {
                                             .rounding(10.0),
                                     );
                                 });
-                            });
+                            },
+                        );
 
                         match drag_event {
                             Some(DragEvent::Dragging(is_dragging)) => {
@@ -169,86 +171,48 @@ impl PuzzlePanel {
                                         subimage.drag(drag_delta);
                                         if !self.delay_repaint {
                                             let mut order = egui::Order::Foreground;
-                                            if !self.debug_paint {
-                                                subimage.paint(ui, &mut order, is_dragging);
-                                            } else {
-                                                subimage.debug_paint(ui, &mut order, is_dragging);
+                                            if self.missing_index != subimage_index {
+                                                if !self.debug_paint {
+                                                    subimage.paint(ui, &mut order, is_dragging);
+                                                } else {
+                                                    subimage.debug_paint(
+                                                        ui,
+                                                        &mut order,
+                                                        is_dragging,
+                                                    );
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                             Some(DragEvent::Released(pos)) => {
-                                let mut swap_ind = 0;
-                                let mut swap = false;
-
-                                // is left
-                                if subimage_index != 0 {
-                                    if let Some(subimage) =
-                                        self.puzzle_subimages.get(subimage_index - 1)
-                                    {
-                                        if subimage.contains(pos) {
-                                            swap = true;
-                                            swap_ind = subimage_index - 1;
-                                        }
-                                    }
-                                }
-
-                                // is right
-                                if subimage_index != self.puzzle_subimages.len() {
-                                    if let Some(subimage) =
-                                        self.puzzle_subimages.get(subimage_index + 1)
-                                    {
-                                        if subimage.contains(pos) {
-                                            swap = true;
-                                            swap_ind = subimage_index + 1;
-                                        }
-                                    }
-                                }
-
-                                // is below
-                                if ((subimage_index as i32) - self.m) >= 0 {
-                                    if let Some(subimage) = self
-                                        .puzzle_subimages
-                                        .get(((subimage_index as i32) - self.m) as usize)
-                                    {
-                                        if subimage.contains(pos) {
-                                            swap = true;
-                                            swap_ind = ((subimage_index as i32) - self.m) as usize;
-                                        }
-                                    }
-                                }
-
-                                // is above
-                                if ((subimage_index as i32) + self.m)
-                                    < (self.puzzle_subimages.len() as i32)
+                                let missing_index_swap = self.board.missing_index();
+                                if let Some(subimage) =
+                                    self.puzzle_subimages.get(missing_index_swap)
                                 {
-                                    if let Some(subimage) = self
-                                        .puzzle_subimages
-                                        .get(((subimage_index as i32) + self.m) as usize)
-                                    {
-                                        if subimage.contains(pos) {
-                                            swap = true;
-                                            swap_ind = ((subimage_index as i32) + self.m) as usize;
-                                        }
+                                    if subimage.contains(pos) {
+                                        self.missing_index = self.board.swap(subimage_index);
+                                        self.puzzle_subimages
+                                            .swap(missing_index_swap, subimage_index);
                                     }
-                                }
-                                if swap {
-                                    self.puzzle_subimages.swap(swap_ind, subimage_index);
                                 }
                             }
                             None => {
                                 if !self.delay_repaint {
                                     let mut order = egui::Order::Background;
-                                    if !self.debug_paint {
-                                        subimage.paint(ui, &mut order, false);
-                                    } else {
-                                        subimage.debug_paint(ui, &mut order, false);
+                                    if self.missing_index != subimage_index {
+                                        if !self.debug_paint {
+                                            subimage.paint(ui, &mut order, false);
+                                        } else {
+                                            subimage.debug_paint(ui, &mut order, false);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
                     subimage_index += 1;
                 }
                 ui.end_row();
@@ -261,6 +225,23 @@ impl PuzzlePanel {
 
         #[allow(deprecated)]
         ui.centered(|ui| {
+            if ui.button("Generate").clicked() {
+                self.board.generate();
+                self.regen = true;
+            }
+        });
+
+        #[allow(deprecated)]
+        ui.centered(|ui| {
+            if ui.button("Reset").clicked() {
+                self.puzzle_subimages.clear();
+                self.missing_index = self.guaranteed_oob_index();
+                self.in_play = false;
+            }
+        });
+
+        #[allow(deprecated)]
+        ui.centered(|ui| {
             ui.add(egui::Hyperlink::from_label_and_url(
                 egui::RichText::new("(source code)").size(12.),
                 "https://github.com/Stehfyn/cs481/blob/main/src/puzzle_panel.rs",
@@ -268,6 +249,64 @@ impl PuzzlePanel {
         });
 
         self.delay_repaint = false;
+    }
+
+    fn guaranteed_oob_index(&self) -> usize {
+        (self.m * self.n) as usize + 1
+    }
+
+    fn generate_puzzle_board(&mut self) {
+        let mut new_subimages: Vec<image_helpers::SubImage> = Vec::default();
+        for i in 0..self.puzzle_subimages.len() {
+            let tile_index = self.board.index_at(i);
+            if let Some(simg) = self.puzzle_subimages.get(tile_index) {
+                new_subimages.insert(new_subimages.len(), simg.clone())
+            }
+        }
+
+        self.puzzle_subimages = new_subimages;
+        self.missing_index = self.board.missing_index();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn fix_puzzle_offset_for_mobile(&self, ui: &mut egui::Ui) {
+        if isMobile() || isIOS() {
+            let x = self.m as f32;
+            let input_min = 2.0;
+            let input_max = 6.0;
+            let output_min = 1.0;
+            let output_max = 0.75;
+
+            // Normalize x from [input_min, input_max] to [output_min, output_max]
+            let norm =
+                (x - input_min) / (input_max - input_min) * (output_max - output_min) + output_min;
+
+            //normalize diff
+            ui.add_space(ui.style().spacing.window_margin.left * norm * 0.5);
+        }
+    }
+
+    fn rebuild_subimage(
+        &mut self,
+        x: i32,
+        y: i32,
+        subimage_index: usize,
+        button_side: f32,
+        ui: &mut egui::Ui,
+    ) {
+        if let Some(rimg) = &self.puzzle_image_r {
+            let next_subimage = build_next_subimage(
+                ui,
+                format!("sub_img_paint_{}", subimage_index),
+                rimg.texture_id(ui.ctx()),
+                subimage_index,
+                self.m,
+                x,
+                y,
+                button_side,
+            );
+            self.puzzle_subimages.insert(subimage_index, next_subimage);
+        }
     }
 }
 
@@ -296,8 +335,7 @@ impl PuzzlePanel {
     pub fn set_mn(&mut self, mn: i32) {
         self.m = mn;
         self.n = mn;
-        self.delay_repaint = true;
-        self.puzzle_subimages.clear();
+        self.rebuild_on_next_frame();
     }
 
     pub fn get_constrained_width(&self) -> f32 {
@@ -312,9 +350,19 @@ impl PuzzlePanel {
         self.puzzle_image = img;
         if let Some(dynamic) = &self.puzzle_image {
             self.puzzle_image_r = image_helpers::dynamic_to_retained(dynamic);
-            self.puzzle_subimages.clear();
-            self.delay_repaint = true;
+            self.rebuild_on_next_frame();
         }
+    }
+
+    pub fn rebuild_on_next_frame(&mut self) {
+        self.puzzle_subimages.clear();
+        self.reset_board();
+        self.delay_repaint = true;
+        self.missing_index = self.guaranteed_oob_index();
+    }
+
+    fn reset_board(&mut self) {
+        self.board = NBoard::new(self.n as usize);
     }
 }
 
@@ -385,6 +433,7 @@ pub fn make_drag(
     drag_delta: &mut Option<egui::Vec2>,
     ui: &mut egui::Ui,
     id: egui::Id,
+    can_drag: bool,
     ui_closure: impl FnOnce(&mut egui::Ui),
 ) -> Option<DragEvent> {
     let response = ui.scope(ui_closure).response;
@@ -392,31 +441,33 @@ pub fn make_drag(
 
     let mut drag_event = None;
 
-    let mut _is_dragging = false;
-    if response.hovered() {
-        ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grab);
-    }
+    if can_drag {
+        let mut _is_dragging = false;
+        if response.hovered() {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grab);
+        }
 
-    if response.drag_started() {
-        *drag_delta = Some(egui::Vec2::ZERO);
-        _is_dragging = true;
-        drag_event = Some(DragEvent::Dragging(true));
-    }
+        if response.drag_started() {
+            *drag_delta = Some(egui::Vec2::ZERO);
+            _is_dragging = true;
+            drag_event = Some(DragEvent::Dragging(true));
+        }
 
-    if response.dragged() {
-        ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
-        let delta = drag_delta.map(|s| s + response.drag_delta());
+        if response.dragged() {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
+            let delta = drag_delta.map(|s| s + response.drag_delta());
 
-        *drag_delta = delta;
-        _is_dragging = true;
-        drag_event = Some(DragEvent::Dragging(true));
-    }
+            *drag_delta = delta;
+            _is_dragging = true;
+            drag_event = Some(DragEvent::Dragging(true));
+        }
 
-    if response.drag_released() {
-        *drag_delta = None;
-        _is_dragging = false;
-        if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
-            drag_event = Some(DragEvent::Released(pos));
+        if response.drag_released() {
+            *drag_delta = None;
+            _is_dragging = false;
+            if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
+                drag_event = Some(DragEvent::Released(pos));
+            }
         }
     }
     drag_event
