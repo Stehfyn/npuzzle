@@ -1,6 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
 mod app;
-pub use app::TemplateApp;
+pub use app::NPuzzle;
 mod about_panel;
 mod fd;
 mod gallery_panel;

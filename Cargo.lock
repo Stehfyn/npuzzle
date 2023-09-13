@@ -862,28 +862,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eframe_template"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "eframe",
- "egui",
- "egui_extras",
- "ehttp",
- "env_logger",
- "image",
- "js-sys",
- "log",
- "poll-promise",
- "rand",
- "rfd",
- "serde",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "egui"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1871,6 +1849,28 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "npuzzle"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "eframe",
+ "egui",
+ "egui_extras",
+ "ehttp",
+ "env_logger",
+ "image",
+ "js-sys",
+ "log",
+ "poll-promise",
+ "rand",
+ "rfd",
+ "serde",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
