@@ -219,7 +219,7 @@ impl eframe::App for TemplateApp {
 
                     ui.scope(|ui| {
                         #[allow(unused_mut)]
-                        let mut disable_settings_button = false;
+                        let mut disable_settings_button = self.puzzle_panel.is_playing();
                         #[cfg(target_arch = "wasm32")]
                         if isIOS() || isMobile() {
                             if self.about_panel.open || self.gallery_panel.open {
@@ -319,7 +319,10 @@ impl TemplateApp {
     }
 
     fn settings_panel(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) -> Command {
-        let is_open = self.settings_panel.open || ctx.memory(|mem| mem.everything_is_visible());
+        let mut is_open = self.settings_panel.open || ctx.memory(|mem| mem.everything_is_visible());
+        if self.puzzle_panel.is_playing() {
+            is_open = false;
+        }
         let mut cmd = Command::Nothing;
         egui::TopBottomPanel::bottom("settings_panel")
             .exact_height(self.settings_panel.calc_panel_ui_height())
@@ -420,6 +423,8 @@ impl TemplateApp {
             .set_gallery_retained_image_count(self.gallery_panel.get_retained_image_count());
         self.settings_panel
             .set_selected_image_src(self.gallery_panel.get_selected_image_src());
+        self.puzzle_panel
+            .set_game_mode(self.settings_panel.get_game_mode());
     }
 
     fn calc_top_panel_button_rects(&mut self, ui: &egui::Ui) {

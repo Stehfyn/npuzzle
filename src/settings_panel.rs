@@ -8,25 +8,9 @@ enum RunMode {
     Bfs,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum GameMode {
-    TimeAttack,
-    Outsmart,
-    Race,
-}
-
+use crate::puzzle_panel::GameMode;
 #[cfg(target_arch = "wasm32")]
 use crate::web_helpers::{isIOS, isMobile};
-
-impl std::fmt::Display for GameMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GameMode::TimeAttack => write!(f, "Time Attack"),
-            GameMode::Outsmart => write!(f, "Outsmart"),
-            GameMode::Race => write!(f, "Race"),
-        }
-    }
-}
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
@@ -136,7 +120,7 @@ impl SettingsPanel {
             ui.add(
                 egui::Slider::new(
                     &mut self.mn_slider_float,
-                    std::ops::RangeInclusive::new(2.0, 6.0),
+                    std::ops::RangeInclusive::new(2.0, 3.0),
                 )
                 .show_value(false)
                 .trailing_fill(true), //.text("== N"),
@@ -316,8 +300,8 @@ impl SettingsPanel {
                         ui.set_width(menu_w);
                         ui.set_height(menu_h);
                         if ui.button("Search").clicked() {}
-                        ui.radio_value(&mut self.run_mode, RunMode::Dfs, "DFS");
-                        ui.radio_value(&mut self.run_mode, RunMode::Bfs, "BFS");
+                        //ui.radio_value(&mut self.run_mode, RunMode::Dfs, "DFS");
+                        //ui.radio_value(&mut self.run_mode, RunMode::Bfs, "BFS");
                     });
             }
         });
@@ -334,8 +318,12 @@ impl SettingsPanel {
 }
 
 impl SettingsPanel {
-    pub fn mn_has_changed(&mut self) -> bool {
+    pub fn mn_has_changed(&self) -> bool {
         self.mn_has_changed
+    }
+
+    pub fn get_game_mode(&self) -> GameMode {
+        self.game_mode
     }
 
     pub fn get_mn(&mut self) -> i32 {

@@ -3,7 +3,26 @@ use crate::image_helpers;
 use crate::npuzzle::*;
 #[cfg(target_arch = "wasm32")]
 use crate::web_helpers::{isIOS, isMobile};
+
+use chrono::Timelike;
 use log::{debug, error, info};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GameMode {
+    TimeAttack,
+    Outsmart,
+    Race,
+}
+
+impl std::fmt::Display for GameMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameMode::TimeAttack => write!(f, "Time Attack"),
+            GameMode::Outsmart => write!(f, "Outsmart"),
+            GameMode::Race => write!(f, "Race"),
+        }
+    }
+}
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
@@ -51,6 +70,22 @@ pub struct PuzzlePanel {
     stop_label: String,
     #[cfg_attr(feature = "serde", serde(skip))]
     play_bar_button_font_size: f32,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    game_mode: GameMode,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    force_rebuild: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    enable_shuffle: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    timer_start: chrono::DateTime<chrono::Utc>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    timer_accum: f64,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    has_shuffled: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    timer_color: egui::Color32,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    in_win: bool,
 }
 
 impl Default for PuzzlePanel {
@@ -78,6 +113,14 @@ impl Default for PuzzlePanel {
             reset_label: "⟳".to_owned(),
             stop_label: "⏹".to_owned(),
             play_bar_button_font_size: 52.,
+            game_mode: GameMode::TimeAttack,
+            force_rebuild: true,
+            enable_shuffle: true,
+            timer_start: chrono::DateTime::default(),
+            timer_accum: 0.0,
+            has_shuffled: false,
+            timer_color: egui::Color32::RED,
+            in_win: false,
         }
     }
 }
@@ -88,9 +131,10 @@ impl PuzzlePanel {
             self.generate_puzzle_board();
             self.regen = false;
         }
-        if self.in_play {
+        if self.in_play && !self.in_win {
             if self.board.check_win() {
-                debug!("win!!!");
+                self.timer_color = egui::Color32::GOLD;
+                self.in_win = true;
             }
         }
     }
@@ -146,12 +190,33 @@ impl PuzzlePanel {
 
             self.constrained_width = avail_h;
         }
+        if self.in_play {
+            ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                if !self.in_win {
+                    let now = chrono::Utc::now();
+                    self.timer_accum = chrono::Utc::now()
+                        .signed_duration_since(self.timer_start)
+                        .num_seconds() as f64;
+                }
+                let accum = self.timer_accum;
+                ui.centered(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("{accum}"))
+                            .size(50.)
+                            .color(self.timer_color),
+                    )
+                });
+            });
+        }
 
         egui::Grid::new("game_canvas").show(ui, |ui| {
             ui.style_mut().spacing.item_spacing.x = ui.style().spacing.item_spacing.y;
 
             let mut subimage_index = 0;
-            let rebuild_subimages = self.puzzle_subimages.is_empty();
+            let rebuild_subimages = self.puzzle_subimages.is_empty() || self.force_rebuild;
+            if self.force_rebuild {
+                self.force_rebuild = false;
+            }
 
             for i in 0..self.m {
                 ui.add_space(w_offset);
@@ -169,7 +234,7 @@ impl PuzzlePanel {
                         }
                         let can_drag_list = self.board.get_swappable();
                         let can_drag = (self.missing_index != subimage_index)
-                            && (can_drag_list.contains(&subimage_index));
+                            && (can_drag_list.contains(&subimage_index) && self.in_play);
                         let drag_event = make_drag(
                             &mut self.drag_delta,
                             ui,
@@ -211,7 +276,7 @@ impl PuzzlePanel {
                                 }
                             }
                             Some(DragEvent::Released(pos)) => {
-                                let missing_index_swap = self.board.missing_index();
+                                let missing_index_swap = self.board.get_missing_index();
                                 if let Some(subimage) =
                                     self.puzzle_subimages.get(missing_index_swap)
                                 {
@@ -266,7 +331,8 @@ impl PuzzlePanel {
             }
 
             ui.scope(|ui| {
-                ui.set_enabled(!self.in_play);
+                let enabled = (!self.in_play && self.has_shuffled);
+                ui.set_enabled(enabled);
                 if ui
                     .add_sized(
                         [bw, bh],
@@ -278,6 +344,13 @@ impl PuzzlePanel {
                     .clicked()
                 {
                     self.in_play = !self.in_play;
+                    if self.in_play {
+                        self.timer_start = chrono::Utc::now();
+                        self.timer_accum = 0.0;
+                        self.in_win = false;
+                        self.timer_color = egui::Color32::RED;
+                    }
+                    self.timer_accum = 0.0;
                 }
             });
             ui.scope(|ui| {
@@ -292,7 +365,12 @@ impl PuzzlePanel {
                     )
                     .clicked()
                 {
+                    if self.in_win {
+                        self.in_win = false;
+                        self.timer_color = egui::Color32::RED;
+                    }
                     self.in_play = false;
+                    self.has_shuffled = false;
                 }
             });
             if ui
@@ -304,19 +382,24 @@ impl PuzzlePanel {
                 )
                 .clicked()
             {}
-            if ui
-                .add_sized(
-                    [bw, bh],
-                    egui::Button::new(
-                        egui::RichText::new(&self.generate_label)
-                            .size(self.play_bar_button_font_size),
-                    ),
-                )
-                .clicked()
-            {
-                self.board.generate();
-                self.regen = true;
-            }
+            ui.scope(|ui| {
+                ui.set_enabled(self.enable_shuffle);
+                if ui
+                    .add_sized(
+                        [bw, bh],
+                        egui::Button::new(
+                            egui::RichText::new(&self.generate_label)
+                                .size(self.play_bar_button_font_size),
+                        ),
+                    )
+                    .clicked()
+                {
+                    self.board.generate();
+                    self.regen = true;
+                    self.enable_shuffle = false;
+                    self.has_shuffled = true;
+                }
+            });
 
             if ui
                 .add_sized(
@@ -330,6 +413,8 @@ impl PuzzlePanel {
                 self.puzzle_subimages.clear();
                 self.missing_index = self.guaranteed_oob_index();
                 self.in_play = false;
+                self.enable_shuffle = true;
+                self.has_shuffled = false;
             }
         });
 
@@ -365,7 +450,12 @@ impl PuzzlePanel {
         }
 
         self.puzzle_subimages = new_subimages;
-        self.missing_index = self.board.missing_index();
+        self.missing_index = self.board.get_missing_index();
+        //self.force_rebuild = true;
+
+        debug!("solvable: {}", self.board.solvable());
+        debug!("missing: {}", self.missing_index);
+        debug! {"state: \n{}", self.board};
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -418,6 +508,10 @@ impl PuzzlePanel {
 }
 
 impl PuzzlePanel {
+    pub fn is_playing(&self) -> bool {
+        self.in_play
+    }
+
     pub fn get_puzzle_dynamic_image_count(&self) -> usize {
         #[allow(unused_variables)]
         if let Some(rimg) = &self.puzzle_image {
@@ -443,6 +537,10 @@ impl PuzzlePanel {
         self.m = mn;
         self.n = mn;
         self.rebuild_on_next_frame();
+    }
+
+    pub fn set_game_mode(&mut self, game_mode: GameMode) {
+        self.game_mode = game_mode;
     }
 
     pub fn get_constrained_width(&self) -> f32 {
@@ -471,8 +569,6 @@ impl PuzzlePanel {
     fn reset_board(&mut self) {
         self.board = NBoard::new(self.n as usize);
     }
-
-    fn calc_play_bar_ui_rects(&mut self, ui: &egui::Ui) {}
 
     fn calc_play_bar_ui_height(&mut self, ui: &egui::Ui) -> f32 {
         ui.painter()
