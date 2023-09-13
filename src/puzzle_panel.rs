@@ -34,6 +34,12 @@ pub struct PuzzlePanel {
     missing_index: usize,
     #[cfg_attr(feature = "serde", serde(skip))]
     in_play: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    play_pause_label: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    play_label: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pause_label: String,
 }
 
 impl Default for PuzzlePanel {
@@ -53,6 +59,9 @@ impl Default for PuzzlePanel {
             regen: false,
             missing_index: (3 * 3) + 1,
             in_play: false,
+            play_pause_label: "".to_owned(),
+            play_label: "▶".to_owned(),
+            pause_label: "⏸".to_owned(),
         }
     }
 }
@@ -61,7 +70,6 @@ impl PuzzlePanel {
     pub fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if self.regen {
             self.generate_puzzle_board();
-            self.in_play = true;
             self.regen = false;
         }
         if self.in_play {
@@ -223,16 +231,36 @@ impl PuzzlePanel {
         ui.style_mut().spacing.item_spacing.x = item_spacing_x;
         ui.style_mut().spacing.item_spacing.y = item_spacing_y;
 
-        #[allow(deprecated)]
-        ui.centered(|ui| {
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
+            ui.add_space(w_offset);
+            let mut fontsize = 36.0;
+            if self.in_play {
+                fontsize = 28.0;
+            }
+            if self.in_play && (self.play_pause_label != self.play_label) {
+                self.play_pause_label = self.play_label.clone();
+            } else {
+                if !self.in_play && self.play_pause_label != self.pause_label {
+                    self.play_pause_label = self.pause_label.clone();
+                }
+            }
+            if ui
+                .add(egui::Button::new(
+                    egui::RichText::new(&self.play_pause_label).size(fontsize * 2.),
+                ))
+                .clicked()
+            {
+                self.in_play = !self.in_play;
+            }
+        });
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
+            ui.add_space(w_offset);
+
             if ui.button("Generate").clicked() {
                 self.board.generate();
                 self.regen = true;
             }
-        });
 
-        #[allow(deprecated)]
-        ui.centered(|ui| {
             if ui.button("Reset").clicked() {
                 self.puzzle_subimages.clear();
                 self.missing_index = self.guaranteed_oob_index();
@@ -256,6 +284,9 @@ impl PuzzlePanel {
     }
 
     fn generate_puzzle_board(&mut self) {
+        self.reset_board();
+        self.board.generate();
+
         let mut new_subimages: Vec<image_helpers::SubImage> = Vec::default();
         for i in 0..self.puzzle_subimages.len() {
             let tile_index = self.board.index_at(i);
