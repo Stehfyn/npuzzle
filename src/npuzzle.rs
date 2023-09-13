@@ -272,17 +272,12 @@ impl NBoard {
             steps: Vec::new(),
         });
 
-        while let Some(State {
-            cost,
-            board,
-            mut steps,
-        }) = heap.pop()
-        {
+        while let Some(State { cost, board, steps }) = heap.pop() {
             if board.check_win() {
                 return Some(steps);
             }
 
-            let state_str = board.to_string_representation(); // Make sure you implement this function
+            let state_str = board.to_string(); // Assuming `to_string` gives a unique string representation of the board
             if visited.contains(&state_str) {
                 continue;
             }
@@ -291,12 +286,14 @@ impl NBoard {
             for swappable_index in board.get_swappable() {
                 let mut new_board = board.clone();
                 new_board.swap(swappable_index);
-                steps.push(swappable_index);
+
+                let mut new_steps = steps.clone(); // Clone the steps vector before modifying it
+                new_steps.push(swappable_index);
 
                 heap.push(State {
-                    cost: steps.len() + new_board.manhattan_distance(),
+                    cost: new_steps.len() + new_board.manhattan_distance(),
                     board: new_board,
-                    steps: steps.clone(),
+                    steps: new_steps, // Use the cloned and updated steps
                 });
             }
         }

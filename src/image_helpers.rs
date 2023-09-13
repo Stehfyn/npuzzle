@@ -86,6 +86,14 @@ impl SubImage {
         }
     }
 
+    pub fn get_index(&self) -> usize {
+        self.index
+    }
+
+    pub fn get_center(&self) -> egui::Pos2 {
+        self.draw_region.center()
+    }
+
     pub fn contains(&self, pos: egui::Pos2) -> bool {
         self.draw_region.contains(pos)
     }

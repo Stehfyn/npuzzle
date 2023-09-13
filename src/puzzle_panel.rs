@@ -1,5 +1,6 @@
 use super::MAX_WRAP;
 use crate::image_helpers;
+use crate::image_helpers::SubImage;
 use crate::npuzzle::*;
 #[cfg(target_arch = "wasm32")]
 use crate::web_helpers::{isIOS, isMobile};
@@ -86,6 +87,10 @@ pub struct PuzzlePanel {
     timer_color: egui::Color32,
     #[cfg_attr(feature = "serde", serde(skip))]
     in_win: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    draw_hint: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    hint_index: usize,
 }
 
 impl Default for PuzzlePanel {
@@ -121,6 +126,8 @@ impl Default for PuzzlePanel {
             has_shuffled: false,
             timer_color: egui::Color32::RED,
             in_win: false,
+            draw_hint: false,
+            hint_index: 0,
         }
     }
 }
@@ -135,6 +142,7 @@ impl PuzzlePanel {
             if self.board.check_win() {
                 self.timer_color = egui::Color32::GOLD;
                 self.in_win = true;
+                self.draw_hint = false;
             }
         }
     }
@@ -284,6 +292,7 @@ impl PuzzlePanel {
                                         self.missing_index = self.board.swap(subimage_index);
                                         self.puzzle_subimages
                                             .swap(missing_index_swap, subimage_index);
+                                        self.draw_hint = false;
                                     }
                                 }
                             }
@@ -373,15 +382,35 @@ impl PuzzlePanel {
                     self.has_shuffled = false;
                 }
             });
-            if ui
-                .add_sized(
-                    [bw, bh],
-                    egui::Button::new(
-                        egui::RichText::new(&self.hint_label).size(self.play_bar_button_font_size),
-                    ),
-                )
-                .clicked()
-            {}
+            ui.scope(|ui| {
+                let enabled = (self.in_play && !self.in_win);
+                ui.set_enabled(enabled);
+                if ui
+                    .add_sized(
+                        [bw, bh],
+                        egui::Button::new(
+                            egui::RichText::new(&self.hint_label)
+                                .size(self.play_bar_button_font_size),
+                        ),
+                    )
+                    .clicked()
+                {
+                    self.draw_hint = true;
+
+                    if let Some(solution) = self.board.a_star_solve() {
+                        for i in 0..solution.len() {
+                            if let Some(next_move) = solution.get(i) {
+                                let next = self.board.index_at(*next_move);
+                                if i == 0 {
+                                    self.hint_index = self.find_subimage_from_tile_index(next);
+                                }
+                                debug!("{next}");
+                            }
+                        }
+                        debug!("================================");
+                    }
+                }
+            });
             ui.scope(|ui| {
                 ui.set_enabled(self.enable_shuffle);
                 if ui
@@ -429,12 +458,48 @@ impl PuzzlePanel {
                 "https://github.com/Stehfyn/cs481/blob/main/src/puzzle_panel.rs",
             ));
         });
+        ui.scope(|ui| {
+            let painter = ui.ctx().layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::new(&"hi"[..]),
+            ));
+
+            if self.draw_hint {
+                if let Some(simg) = self.puzzle_subimages.get(self.hint_index) {
+                    painter.text(
+                        simg.get_center(),
+                        egui::Align2::CENTER_CENTER,
+                        "THIS GUY",
+                        egui::FontId::proportional(20.0),
+                        egui::Color32::RED,
+                    );
+                }
+            }
+        });
 
         self.delay_repaint = false;
     }
 
     fn guaranteed_oob_index(&self) -> usize {
         (self.m * self.n) as usize + 1
+    }
+
+    fn find_subimage_from_tile_index(&self, i: usize) -> usize {
+        let mut was_found = false;
+        let mut found = 0;
+        for x in 0..self.puzzle_subimages.len() {
+            if let Some(simg) = self.puzzle_subimages.get(x) {
+                if simg.get_index() == i {
+                    was_found = true;
+                    found = x;
+                }
+            }
+        }
+        if was_found {
+            found
+        } else {
+            panic!("AHHHHHHHHHHHHHHHHHHHHH. That is all.");
+        }
     }
 
     fn generate_puzzle_board(&mut self) {
@@ -451,7 +516,6 @@ impl PuzzlePanel {
 
         self.puzzle_subimages = new_subimages;
         self.missing_index = self.board.get_missing_index();
-        //self.force_rebuild = true;
 
         debug!("solvable: {}", self.board.solvable());
         debug!("missing: {}", self.missing_index);
