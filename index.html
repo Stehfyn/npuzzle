@@ -1,4 +1,15 @@
 <html>
+<!-- 
+ * @file index.html
+ *
+ * @brief This is the html page used to index, style, and implement our wasm application.
+ * The skeleton of this file is a boilerplate for Rust -> WASM compilation, found at:
+ * https://github.com/emilk/eframe_template
+ * 
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+-->
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 
 <!-- Disable zooming: -->
@@ -245,6 +256,7 @@
                 navigator.serviceWorker.register('sw.js');
             });
         }
+        
         // https://stackoverflow.com/a/11381730
         window.isMobile = function () {
             let check = false;
@@ -263,36 +275,6 @@
                 // iPad on iOS 13 detection
                 || (navigator.userAgent.includes("Mac") && "ontouchend" in document)
         };
-        /*
-        window.openFileDialog = function (accept, multy = false, callback) {
-            var inputElement = document.createElement("input");
-            inputElement.type = "file";
-            inputElement.accept = accept; // Note Edge does not support this attribute
-            inputElement.style.position = 'absolute';
-            inputElement.style.top = '150px';
-            inputElement.style.left = '150px';
-            inputElement.id = "input";
-            //if (multy) {
-            //    inputElement.multiple = multy;
-            //}
-            if (typeof callback === "function") {
-                inputElement.addEventListener("change", callback);
-            }
-            inputElement.dispatchEvent(new MouseEvent("click"));
-        };
-        window.openDialogClick = function () {
-            // open file dialog for text files
-            window.openFileDialog("image/*", true, fileDialogChanged);
-        };
-        // file dialog onchange event handler
-        function fileDialogChanged(event) {
-            [...this.files].forEach(file => {
-                var div = document.createElement("div");
-                div.className = "fileList common";
-                div.textContent = file.name;
-                userSelectedFiles.appendChild(div);
-            });
-        };*/
     </script>
 </body>
 

@@ -1,3 +1,15 @@
+/**
+ * @file app.rs
+ *
+ * @brief This is the NPuzzle application driver for both native and wasm compilation targets.
+ *
+ * This modules's skeleton if boilerplate from:
+ * https://github.com/emilk/eframe_template
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 use super::MAX_WRAP;
 use crate::about_panel::AboutPanel;
 use crate::gallery_panel::GalleryPanel;
@@ -423,6 +435,11 @@ impl NPuzzle {
             .set_gallery_retained_image_count(self.gallery_panel.get_retained_image_count());
         self.settings_panel
             .set_selected_image_src(self.gallery_panel.get_selected_image_src());
+        let game_mode = self.settings_panel.get_game_mode();
+        if game_mode != self.puzzle_panel.game_mode {
+            self.puzzle_panel.in_win = false;
+            self.puzzle_panel.has_shuffled = false;
+        }
         self.puzzle_panel
             .set_game_mode(self.settings_panel.get_game_mode());
     }

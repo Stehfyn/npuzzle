@@ -1,3 +1,22 @@
+/**
+ * @file npuzzle.rs
+ *
+ * @brief This is the npuzzle module which implements the logic for an NxN Board with it's accompanying,
+ * uninformed and heuristic-based search algorithms. (DFS and A*)
+ *
+ * Generation technique and is_solvable is adapted from:
+ * https://github.com/tnicolas42/n-puzzle/blob/master/generator.py
+ *
+ * Algorithms adapted from:
+ * https://github.com/tnicolas42/n-puzzle/blob/master/srcs/algo.py
+ *
+ * Heuristics adapted from:
+ * https://github.com/tnicolas42/n-puzzle/blob/master/srcs/heuristics.py
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 use rand::Rng;
 const N_MIN: usize = 2;
 use log::{debug, error, info};
@@ -45,6 +64,32 @@ impl std::fmt::Display for Tile {
         write!(f, "{}", self.index)
     }
 }
+
+#[derive(Eq)]
+struct State {
+    cost: usize,
+    board: NBoard,
+    steps: Vec<usize>,
+}
+
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.cost.cmp(&self.cost)
+    }
+}
+
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.cost == other.cost
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NBoard {
     n: usize,
@@ -109,6 +154,14 @@ impl NBoard {
         } {
             break;
         }
+    }
+
+    pub fn set_board(&mut self, new_board: Vec<Tile>) {
+        self.board = new_board;
+    }
+
+    pub fn set_mi(&mut self, mi: usize) {
+        self.missing_index = mi;
     }
 
     pub fn reset(dst: &mut Vec<Tile>, src: &Vec<Tile>) {
@@ -277,7 +330,7 @@ impl NBoard {
                 return Some(steps);
             }
 
-            let state_str = board.to_string(); // Assuming `to_string` gives a unique string representation of the board
+            let state_str = board.to_string();
             if visited.contains(&state_str) {
                 continue;
             }
@@ -287,13 +340,13 @@ impl NBoard {
                 let mut new_board = board.clone();
                 new_board.swap(swappable_index);
 
-                let mut new_steps = steps.clone(); // Clone the steps vector before modifying it
+                let mut new_steps = steps.clone();
                 new_steps.push(swappable_index);
 
                 heap.push(State {
                     cost: new_steps.len() + new_board.manhattan_distance(),
                     board: new_board,
-                    steps: new_steps, // Use the cloned and updated steps
+                    steps: new_steps,
                 });
             }
         }
@@ -351,14 +404,8 @@ impl NBoard {
     pub fn solvable(&self) -> bool {
         if self.check_win() {
             return true;
-        } else if self.n == 2 {
-            let mut check = self.clone();
-            if let Some(solution) = check.dfs_solve() {
-                return true;
-            } else {
-                return false;
-            }
-        } else {
+        }
+        if self.n == 2 || self.n == 3 {
             let mut check = self.clone();
             if let Some(solution) = check.a_star_solve() {
                 return true;
@@ -390,29 +437,4 @@ impl NBoard {
 
 fn is_even(x: usize) -> bool {
     (x as i32).rem_euclid(2) == 0
-}
-
-#[derive(Eq)]
-struct State {
-    cost: usize,
-    board: NBoard,
-    steps: Vec<usize>, // Record of steps
-}
-
-impl Ord for State {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.cost.cmp(&self.cost) // We want a min-heap
-    }
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for State {
-    fn eq(&self, other: &Self) -> bool {
-        self.cost == other.cost
-    }
 }

@@ -1,3 +1,16 @@
+/**
+ * @file fd.rs
+ *
+ * @brief This is the File Dialog helper module used to facilitate uploading image files to NPuzzle.
+ *
+ * Various issues used as implementation resources:
+ * - https://github.com/emilk/egui/issues/270
+ * - https://github.com/emilk/egui/discussions/2010
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 #[cfg(target_arch = "wasm32")]
 use js_sys::{Array, ArrayBuffer, Uint8Array};
 #[cfg(target_arch = "wasm32")]

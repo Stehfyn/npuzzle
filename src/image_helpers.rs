@@ -1,3 +1,13 @@
+/**
+ * @file image_helpers.rs
+ *
+ * @brief This is the image helpers module which implements unified logic for handling the two types of image
+ * data NPuzzle encounters at runtime.
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 use egui_extras::RetainedImage;
 use image::DynamicImage;
 use std::io::Cursor;
@@ -38,10 +48,8 @@ pub fn from_response_to_image_wrapper<'a>(
     let content_type = response.content_type().unwrap_or_default();
 
     if content_type.starts_with("image/") {
-        // Here we wrap the variant in Some() as required
         Some(ImageDataWrapper::VecRef(&response.bytes))
     } else {
-        // Here we return None to indicate the absence of a valid image
         None
     }
 }

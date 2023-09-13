@@ -1,3 +1,13 @@
+/**
+ * @file settings_panel.rs
+ *
+ * @brief This is the module that implements the ui for configuring an instance of puzzle_panel.rs
+ * and thus indirectly an NBoard.
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 use egui::Image;
 
 use super::MAX_WRAP;
@@ -149,13 +159,6 @@ impl SettingsPanel {
                             egui::RichText::new("Outsmart").size(18.0),
                         );
                     });
-                    ui.vertical_centered(|ui| {
-                        ui.selectable_value(
-                            &mut self.game_mode,
-                            GameMode::Race,
-                            egui::RichText::new("Race").size(18.0),
-                        );
-                    });
                 });
         });
 
@@ -299,7 +302,13 @@ impl SettingsPanel {
                     .show(ui.ctx(), |ui| {
                         ui.set_width(menu_w);
                         ui.set_height(menu_h);
-                        if ui.button("Search").clicked() {}
+
+                        ui.centered(|ui| {
+                            ui.add(egui::Hyperlink::from_label_and_url(
+                                egui::RichText::new("(source code)").size(12.),
+                                "https://github.com/Stehfyn/npuzzle/blob/main/src/npuzzle.rs",
+                            ));
+                        });
                         //ui.radio_value(&mut self.run_mode, RunMode::Dfs, "DFS");
                         //ui.radio_value(&mut self.run_mode, RunMode::Bfs, "BFS");
                     });
@@ -311,7 +320,7 @@ impl SettingsPanel {
         ui.centered(|ui| {
             ui.add(egui::Hyperlink::from_label_and_url(
                 egui::RichText::new("(source code)").size(12.),
-                "https://github.com/Stehfyn/cs481/blob/main/src/settings_panel.rs",
+                "https://github.com/Stehfyn/npuzzle/blob/main/src/settings_panel.rs",
             ));
         });
     }

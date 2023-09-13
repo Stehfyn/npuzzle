@@ -1,5 +1,18 @@
 #![warn(clippy::all, rust_2018_idioms)]
-//#![cfg_attr(not(debug_assertions), windows_subsystem = "console")] // hide console window on Windows in release
+#![cfg_attr(not(debug_assertions), windows_subsystem = "console")] // hide console window on Windows in release
+
+/**
+ * @file main.rs
+ *
+ * @brief This is the main application driver for both native and wasm compilation targets.
+ *
+ * This modules's skeleton if boilerplate from:
+ * https://github.com/emilk/eframe_template
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
@@ -12,7 +25,7 @@ fn main() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "eframe template",
+        "npuzzle",
         native_options,
         Box::new(|cc| Box::new(npuzzle::NPuzzle::new(cc))),
     )

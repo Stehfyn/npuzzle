@@ -1,3 +1,12 @@
+/**
+ * @file gallery_panel.rs
+ *
+ * @brief This is the Gallery Panel module which implements uploading and displaying images for NPuzzle.
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 use super::MAX_WRAP;
 use crate::fd::FileDialog;
 use crate::image_helpers;
@@ -414,7 +423,7 @@ impl GalleryPanel {
         ui.centered(|ui| {
             ui.add(egui::Hyperlink::from_label_and_url(
                 egui::RichText::new("(source code)").size(12.),
-                "https://github.com/Stehfyn/cs481/blob/main/src/gallery_panel.rs",
+                "https://github.com/Stehfyn/npuzzle/blob/main/src/gallery_panel.rs",
             ));
         });
     }

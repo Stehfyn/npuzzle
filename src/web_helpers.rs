@@ -1,3 +1,12 @@
+/**
+ * @file npuzzle.rs
+ *
+ * @brief This is the module for creating an interface to javascript functions found in index.html.
+ *
+ * @author Stephen Foster
+ * Contact: stephenfoster@nevada.unr.edu
+ *
+ */
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
