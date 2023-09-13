@@ -19,6 +19,8 @@ pub struct GalleryPanel {
     #[cfg_attr(feature = "serde", serde(skip))]
     fd: FileDialog,
     #[cfg_attr(feature = "serde", serde(skip))]
+    img_srcs: Vec<Option<String>>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     img_raw: Vec<Option<image::DynamicImage>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     img: Vec<Option<RetainedImage>>,
@@ -56,6 +58,8 @@ pub struct GalleryPanel {
     init_image: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
     pickup_init: bool,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    last_requested_url: String,
 }
 
 impl Default for GalleryPanel {
@@ -64,6 +68,7 @@ impl Default for GalleryPanel {
             // Example stuff:
             open: false,
             fd: FileDialog::default(),
+            img_srcs: Vec::default(),
             img_raw: Vec::default(),
             img: Vec::default(),
             picked_path: None,
@@ -82,6 +87,7 @@ impl Default for GalleryPanel {
             init_slider_bounds: false,
             init_image: true,
             pickup_init: false,
+            last_requested_url: "".to_owned(),
         }
     }
 }
@@ -112,9 +118,13 @@ impl GalleryPanel {
                 match result {
                     Ok(resource) => {
                         if let Some(dimg) = resource {
-                            self.img_raw.push(Some(dimg.clone()));
+                            self.img_raw.insert(self.img_raw.len(), Some(dimg.clone()));
                             if let Some(rimg) = image_helpers::dynamic_to_retained(dimg) {
-                                self.img.push(Some(rimg));
+                                self.img.insert(self.img.len(), Some(rimg));
+                                self.img_srcs.insert(
+                                    self.img_srcs.len(),
+                                    Some(self.last_requested_url.clone()),
+                                );
                                 self.pickup_init = true;
                             }
                             self.random_promise = None;
@@ -187,9 +197,10 @@ impl GalleryPanel {
                 #[cfg(target_arch = "wasm32")]
                 if let Some(bytes) = &file.bytes {
                     info += &format!(" ({} bytes)", bytes.len());
-                    self.try_add_image_to_gallery(image_helpers::ImageDataWrapper::Bytes(
-                        bytes.clone(),
-                    ));
+                    self.try_add_image_to_gallery(
+                        image_helpers::ImageDataWrapper::Bytes(bytes.clone()),
+                        "default".to_owned(),
+                    );
                 } else {
                     debug!("Unable to read file!");
                 }
@@ -198,9 +209,10 @@ impl GalleryPanel {
                 match fs::read(info.clone()) {
                     Ok(bytes) => {
                         info += &format!(" ({} bytes)", bytes.len());
-                        self.try_add_image_to_gallery(image_helpers::ImageDataWrapper::VecRef(
-                            &bytes,
-                        ));
+                        self.try_add_image_to_gallery(
+                            image_helpers::ImageDataWrapper::VecRef(&bytes),
+                            "default".to_owned(),
+                        );
                     }
 
                     Err(err) => {
@@ -245,7 +257,10 @@ impl GalleryPanel {
                     self.fd.open();
                 }
                 if let Some(bytes) = self.fd.get() {
-                    self.try_add_image_to_gallery(image_helpers::ImageDataWrapper::VecRef(&bytes));
+                    self.try_add_image_to_gallery(
+                        image_helpers::ImageDataWrapper::VecRef(&bytes),
+                        "User Upload".to_owned(),
+                    );
                 }
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -254,9 +269,10 @@ impl GalleryPanel {
                 if ui.add_sized([bw, bh], button).clicked() {
                     fd.open();
                     if let Some(bytes) = fd.get() {
-                        self.try_add_image_to_gallery(image_helpers::ImageDataWrapper::VecRef(
-                            &bytes,
-                        ));
+                        self.try_add_image_to_gallery(
+                            image_helpers::ImageDataWrapper::VecRef(&bytes),
+                            "User Upload".to_owned(),
+                        );
                     }
                 }
             }
@@ -413,6 +429,10 @@ impl GalleryPanel {
     // Launch an async fetch request to picsum for an image.
     fn fetch_image(&mut self, ctx: &egui::Context) {
         let url = self.get_random_picsum_image_url();
+        if let Some(_) = self.random_promise {
+        } else {
+            self.last_requested_url = url.clone();
+        }
         let (sender, promise) = Promise::new();
         let request = ehttp::Request::get(&url);
         let nctx = ctx.clone();
@@ -432,11 +452,16 @@ impl GalleryPanel {
     }
 
     // Try and convert from sequence of bytes -> DynamicImage -> RetainedImage, then add it to our containers.
-    fn try_add_image_to_gallery(&mut self, bytes: image_helpers::ImageDataWrapper<'_>) {
+    fn try_add_image_to_gallery(
+        &mut self,
+        bytes: image_helpers::ImageDataWrapper<'_>,
+        src: String,
+    ) {
         if let Some(dimg) = image_helpers::bytes_to_dynamic(bytes) {
             if let Some(rimg) = image_helpers::dynamic_to_retained(&dimg) {
-                self.img_raw.push(Some(dimg));
-                self.img.push(Some(rimg));
+                self.img_srcs.insert(self.img_srcs.len(), Some(src.clone()));
+                self.img_raw.insert(self.img_raw.len(), Some(dimg));
+                self.img.insert(self.img.len(), Some(rimg));
             }
         }
     }
@@ -458,8 +483,16 @@ impl GalleryPanel {
 
     // Get the DynamicImage object of currently selected gallery image.
     pub fn get_selected_image_raw(&self) -> Option<image::DynamicImage> {
-        if self.img.len() > 0 && self.img.len() == self.img_raw.len() {
+        if self.img.len() > 0 && (self.img.len() == self.img_raw.len()) {
             self.img_raw[self.selected_img].clone()
+        } else {
+            None
+        }
+    }
+
+    pub fn get_selected_image_src(&self) -> Option<String> {
+        if self.img_srcs.len() > 0 {
+            self.img_srcs[self.selected_img].clone()
         } else {
             None
         }

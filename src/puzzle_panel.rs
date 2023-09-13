@@ -1,3 +1,4 @@
+use super::MAX_WRAP;
 use crate::image_helpers;
 use crate::npuzzle::*;
 #[cfg(target_arch = "wasm32")]
@@ -40,6 +41,16 @@ pub struct PuzzlePanel {
     play_label: String,
     #[cfg_attr(feature = "serde", serde(skip))]
     pause_label: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    generate_label: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    hint_label: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    reset_label: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    stop_label: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    play_bar_button_font_size: f32,
 }
 
 impl Default for PuzzlePanel {
@@ -62,6 +73,11 @@ impl Default for PuzzlePanel {
             play_pause_label: "".to_owned(),
             play_label: "▶".to_owned(),
             pause_label: "⏸".to_owned(),
+            generate_label: "🔀".to_owned(),
+            hint_label: "😭".to_owned(),
+            reset_label: "⟳".to_owned(),
+            stop_label: "⏹".to_owned(),
+            play_bar_button_font_size: 52.,
         }
     }
 }
@@ -231,41 +247,94 @@ impl PuzzlePanel {
         ui.style_mut().spacing.item_spacing.x = item_spacing_x;
         ui.style_mut().spacing.item_spacing.y = item_spacing_y;
 
+        ui.separator();
+
+        let bw = (self.constrained_width / 5.) - (ui.ctx().style().spacing.item_spacing.x);
+        let bh = self.calc_play_bar_ui_height(ui);
+
         ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
             ui.add_space(w_offset);
-            let mut fontsize = 36.0;
-            if self.in_play {
-                fontsize = 28.0;
-            }
-            if self.in_play && (self.play_pause_label != self.play_label) {
-                self.play_pause_label = self.play_label.clone();
+            #[cfg(target_arch = "wasm32")]
+            self.fix_play_bar_offset_for_mobile(ui);
+
+            if self.in_play && (self.play_pause_label != self.pause_label) {
+                self.play_pause_label = self.pause_label.clone();
             } else {
-                if !self.in_play && self.play_pause_label != self.pause_label {
-                    self.play_pause_label = self.pause_label.clone();
+                if !self.in_play && self.play_pause_label != self.play_label {
+                    self.play_pause_label = self.play_label.clone();
                 }
             }
+
+            ui.scope(|ui| {
+                ui.set_enabled(!self.in_play);
+                if ui
+                    .add_sized(
+                        [bw, bh],
+                        egui::Button::new(
+                            egui::RichText::new(&self.play_pause_label)
+                                .size(self.play_bar_button_font_size),
+                        ),
+                    )
+                    .clicked()
+                {
+                    self.in_play = !self.in_play;
+                }
+            });
+            ui.scope(|ui| {
+                ui.set_enabled(self.in_play);
+                if ui
+                    .add_sized(
+                        [bw, bh],
+                        egui::Button::new(
+                            egui::RichText::new(&self.stop_label)
+                                .size(self.play_bar_button_font_size),
+                        ),
+                    )
+                    .clicked()
+                {
+                    self.in_play = false;
+                }
+            });
             if ui
-                .add(egui::Button::new(
-                    egui::RichText::new(&self.play_pause_label).size(fontsize * 2.),
-                ))
+                .add_sized(
+                    [bw, bh],
+                    egui::Button::new(
+                        egui::RichText::new(&self.hint_label).size(self.play_bar_button_font_size),
+                    ),
+                )
+                .clicked()
+            {}
+            if ui
+                .add_sized(
+                    [bw, bh],
+                    egui::Button::new(
+                        egui::RichText::new(&self.generate_label)
+                            .size(self.play_bar_button_font_size),
+                    ),
+                )
                 .clicked()
             {
-                self.in_play = !self.in_play;
-            }
-        });
-        ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
-            ui.add_space(w_offset);
-
-            if ui.button("Generate").clicked() {
                 self.board.generate();
                 self.regen = true;
             }
 
-            if ui.button("Reset").clicked() {
+            if ui
+                .add_sized(
+                    [bw, bh],
+                    egui::Button::new(
+                        egui::RichText::new(&self.reset_label).size(self.play_bar_button_font_size),
+                    ),
+                )
+                .clicked()
+            {
                 self.puzzle_subimages.clear();
                 self.missing_index = self.guaranteed_oob_index();
                 self.in_play = false;
             }
+        });
+
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
+            ui.add_space(w_offset);
         });
 
         #[allow(deprecated)]
@@ -314,6 +383,13 @@ impl PuzzlePanel {
 
             //normalize diff
             ui.add_space(ui.style().spacing.window_margin.left * norm * 0.5);
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn fix_play_bar_offset_for_mobile(&self, ui: &mut egui::Ui) {
+        if isMobile() || isIOS() {
+            ui.add_space(ui.ctx().style().spacing.item_spacing.x);
         }
     }
 
@@ -394,6 +470,24 @@ impl PuzzlePanel {
 
     fn reset_board(&mut self) {
         self.board = NBoard::new(self.n as usize);
+    }
+
+    fn calc_play_bar_ui_rects(&mut self, ui: &egui::Ui) {}
+
+    fn calc_play_bar_ui_height(&mut self, ui: &egui::Ui) -> f32 {
+        ui.painter()
+            .layout(
+                self.hint_label.clone(),
+                egui::FontId::new(
+                    self.play_bar_button_font_size,
+                    egui::FontFamily::Proportional,
+                ),
+                egui::Color32::default(),
+                MAX_WRAP,
+            )
+            .rect
+            .height()
+            + ui.ctx().style().spacing.button_padding.y
     }
 }
 

@@ -418,6 +418,8 @@ impl TemplateApp {
             .set_gallery_dynamic_image_count(self.gallery_panel.get_dynamic_image_count());
         self.settings_panel
             .set_gallery_retained_image_count(self.gallery_panel.get_retained_image_count());
+        self.settings_panel
+            .set_selected_image_src(self.gallery_panel.get_selected_image_src());
     }
 
     fn calc_top_panel_button_rects(&mut self, ui: &egui::Ui) {

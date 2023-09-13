@@ -1,3 +1,5 @@
+use egui::Image;
+
 use super::MAX_WRAP;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -71,6 +73,8 @@ pub struct SettingsPanel {
     gallery_dynamic_image_count: usize,
     #[cfg_attr(feature = "serde", serde(skip))]
     puzzle_dynamic_image_count: usize,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    selected_image_src: Option<String>,
 }
 
 impl Default for SettingsPanel {
@@ -97,6 +101,7 @@ impl Default for SettingsPanel {
             puzzle_subimage_count: 0,
             gallery_dynamic_image_count: 0,
             gallery_retained_image_count: 0,
+            selected_image_src: None,
         }
     }
 }
@@ -228,7 +233,7 @@ impl SettingsPanel {
                 .add_sized(
                     [bw, bh],
                     egui::Button::new(
-                        egui::RichText::new("Debug Menu").size(self.button_ui_font_size),
+                        egui::RichText::new(&self.debug_menu_label).size(self.button_ui_font_size),
                     ),
                 )
                 .clicked()
@@ -285,6 +290,12 @@ impl SettingsPanel {
                             "Dynamic Images (Gallery Panel): {}",
                             self.gallery_dynamic_image_count
                         )));
+                        if let Some(src) = &self.selected_image_src {
+                            #[allow(deprecated)]
+                            ui.centered(|ui| {
+                                ui.add(egui::Hyperlink::new(src));
+                            });
+                        }
                         #[allow(deprecated)]
                         ui.centered(|ui| {
                             if ui
@@ -353,6 +364,10 @@ impl SettingsPanel {
 
     pub fn set_puzzle_panel_constrained_width(&mut self, width: f32) {
         self.puzzle_panel_constrained_width = width;
+    }
+
+    pub fn set_selected_image_src(&mut self, src: Option<String>) {
+        self.selected_image_src = src;
     }
 
     pub fn is_debug_overlay_active(&self) -> bool {
